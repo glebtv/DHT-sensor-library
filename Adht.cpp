@@ -1,10 +1,10 @@
 /* DHT library 
-
 MIT license
 written by Adafruit Industries
 */
 
-#include "DHT.h"
+#include "Adht.h"
+#include <DigiUSB.h>
 
 DHT::DHT(uint8_t pin, uint8_t type, uint8_t count) {
   _pin = pin;
@@ -20,76 +20,13 @@ void DHT::begin(void) {
   _lastreadtime = 0;
 }
 
-//boolean S == Scale.  True == Farenheit; False == Celcius
-float DHT::readTemperature(bool S) {
-  float f;
-
-  if (read()) {
-    switch (_type) {
-    case DHT11:
-      f = data[2];
-      if(S)
-      	f = convertCtoF(f);
-      	
-      return f;
-    case DHT22:
-    case DHT21:
-      f = data[2] & 0x7F;
-      f *= 256;
-      f += data[3];
-      f /= 10;
-      if (data[2] & 0x80)
-	f *= -1;
-      if(S)
-	f = convertCtoF(f);
-
-      return f;
-    }
-  }
-  return NAN;
+float DHT::getTemperature(void) {
+  return data[2];
 }
 
-float DHT::convertCtoF(float c) {
-	return c * 9 / 5 + 32;
+float DHT::getHumidity(void) {
+  return data[0];
 }
-
-float DHT::convertFtoC(float f) {
-  return (f - 32) * 5 / 9; 
-}
-
-float DHT::readHumidity(void) {
-  float f;
-  if (read()) {
-    switch (_type) {
-    case DHT11:
-      f = data[0];
-      return f;
-    case DHT22:
-    case DHT21:
-      f = data[0];
-      f *= 256;
-      f += data[1];
-      f /= 10;
-      return f;
-    }
-  }
-  return NAN;
-}
-
-float DHT::computeHeatIndex(float tempFahrenheit, float percentHumidity) {
-  // Adapted from equation at: https://github.com/adafruit/DHT-sensor-library/issues/9 and
-  // Wikipedia: http://en.wikipedia.org/wiki/Heat_index
-  return -42.379 + 
-           2.04901523 * tempFahrenheit + 
-          10.14333127 * percentHumidity +
-          -0.22475541 * tempFahrenheit*percentHumidity +
-          -0.00683783 * pow(tempFahrenheit, 2) +
-          -0.05481717 * pow(percentHumidity, 2) + 
-           0.00122874 * pow(tempFahrenheit, 2) * percentHumidity + 
-           0.00085282 * tempFahrenheit*pow(percentHumidity, 2) +
-          -0.00000199 * pow(tempFahrenheit, 2) * pow(percentHumidity, 2);
-}
-
 
 boolean DHT::read(void) {
   uint8_t laststate = HIGH;
@@ -119,15 +56,16 @@ boolean DHT::read(void) {
   
   // pull the pin high and wait 250 milliseconds
   digitalWrite(_pin, HIGH);
-  delay(250);
+  DigiUSB.delay(250);
 
   // now pull it low for ~20 milliseconds
   pinMode(_pin, OUTPUT);
   digitalWrite(_pin, LOW);
-  delay(20);
-  noInterrupts();
+  DigiUSB.delay(20);
+  //noInterrupts();
   digitalWrite(_pin, HIGH);
-  delayMicroseconds(40);
+  delayMicroseconds(2);
+  DigiUSB.refresh();
   pinMode(_pin, INPUT);
 
   // read in timings
@@ -140,10 +78,11 @@ boolean DHT::read(void) {
         break;
       }
     }
+    DigiUSB.refresh();
     laststate = digitalRead(_pin);
 
     if (counter == 255) break;
-
+    
     // ignore first 3 transitions
     if ((i >= 4) && (i%2 == 0)) {
       // shove each bit into the storage bytes
@@ -154,8 +93,8 @@ boolean DHT::read(void) {
     }
 
   }
-
-  interrupts();
+  DigiUSB.refresh();
+  //interrupts();
   
   /*
   Serial.println(j, DEC);
